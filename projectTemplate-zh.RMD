@@ -1,0 +1,482 @@
+Explore Prosper loandata
+Prosper贷款数据分析报告
+
+背景:本研究的数据集来自Prosper。Prosper是美国的一家P2P（个人对个人）在线借贷平台网站，世界排名2万左右。网站撮合了一些有闲钱的人和一些急于用钱的人。用户若有贷款需求，可在网站上列出期望数额和可承受的最大利率。潜在贷方则为数额和利率展开竞价。这种交易对借贷双方是一种双赢。卖家可以获得比银行更高的利息收入，而对于买家来说，除了过程快捷便利和可以获得较低的还款利率外，更主要的是你不需要经过漫长的审查过程，不会遇到在银行申请贷款遭拒时的尴尬。此数据集包含113,937项贷款，每项贷款有81个变量，包括贷款金额、借款利率（或利率）、当前贷款状态、借款人收入、借款人就业状态、借款人信用历史及最新支付信息。本次分析筛选了其中的16个变量，试图探索贷款金额、贷款利率等变量的影响因素。
+
+========================================================
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# 加载你最终使用的所有组件
+# 在这个代码块的分析中。
+
+# 注意，在这个代码块中，将参数 "echo" 设为假。
+# This prevents the code from displaying in the knitted HTML output.这可以避免代码混入 HTML 输出显示。
+# 应当在文件中，对所有代码块设为 echo=FALSE 。
+knitr::opts_chunk$set(message = FALSE, warning = FALSE, echo = FALSE)
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(memisc)
+```
+
+```{r echo=FALSE, Load_the_Data}
+# 加载数据集
+loandata <- read.csv('prosperLoanData.csv')
+#筛选本研究感兴趣的变量
+pf <- loandata[,c('CreditGrade','Term',
+                  'BorrowerRate','ProsperRating..Alpha.',
+                  'ProsperScore','ListingCategory..numeric.',
+                  'BorrowerState','Occupation',
+                  'EmploymentStatus','CreditScoreRangeLower',
+                  'CreditScoreRangeUpper','DelinquenciesLast7Years',
+                  'DebtToIncomeRatio','IncomeRange',
+                  'LoanOriginalAmount','LoanOriginationDate')]
+
+#调整变量类型
+pf$Term<-factor(pf$Term,labels = c( '1 year', '3 year', '5 year'))
+
+pf$CreditGrade <- 
+  ordered(pf$CreditGrade,levels = c(NA,"HR","E","D","C","B","A","AA"))
+
+pf$ProsperRating..Alpha. <- ordered(pf$ProsperRating..Alpha.,levels = c(NA,"HR","E","D","C","B","A","AA"))
+
+pf$ListingCategory..numeric. <- factor(pf$ListingCategory..numeric.)
+
+pf$IncomeRange<-ordered(pf$IncomeRange,levels=c("Not displayed",
+                                                "Not employed","$0",
+                                                "$1-24,999",
+                                                "$25,000-49,999",
+                                                "$50,000-74,999",
+                                                "75,000-99,999",
+                                                "$100,000+"))
+
+pf$LoanOriginationDate <- as.Date(pf$LoanOriginationDate)
+
+#创建新变量CreditScore、Period
+pf$CreditScore <-(pf$CreditScoreRangeLower+ pf$CreditScoreRangeUpper)/2
+
+pf$Period[pf$LoanOriginationDate > "2009-07-01"] <- "After 2009-07-01"
+pf$Period[pf$LoanOriginationDate < "2009-07-01"] <- "Before 2009-07-01"
+
+#查看调整后的数据集pf
+dim(pf)
+str(pf)
+summary(pf)
+
+```
+
+# 单变量绘图选择
+```{r echo=FALSE, Univariate_Plots1}
+#CreditGrade(2009年7月1日前客户的信用等级)柱状图
+ggplot(aes(x=CreditGrade),data = subset(pf, !is.na(CreditGrade)))+
+         geom_bar(color = 'black', fill = 'orange')
+```  
+
+由CreditGrade柱状图可知，2009年7月1日前客户的信用等级基本上呈正态分布，信用评级为C的人比较多。 
+
+```{r echo=FALSE, Univariate_Plots2}
+#Term(贷款期限)柱状图
+ggplot(aes(Term),data = pf) + 
+  geom_bar(color = 'black', fill = 'orange')
+```
+
+由Term柱状图可知，贷款期限分为1年、3年和5年，其中贷款期限为3年的最多。
+
+```{r echo=FALSE, Univariate_Plots3}
+#BorrowerRate(贷款利率)直方图
+ggplot(aes(BorrowerRate), data = pf) +
+  geom_histogram(color = 'black', fill = 'deeppink') +
+  scale_x_continuous(breaks = seq(0,0.4,0.05))
+```
+
+由BorrowerRate直方图可知，大部分贷款利率在0.05～0.35范围内,其中贷款利率为0.15左右的贷款相对较多。
+
+```{r echo=FALSE, Univariate_Plots4}
+#ProsperRating..Alpha.(2009年7月1日后客户的信用等级)柱状图
+ggplot(aes(x=ProsperRating..Alpha.),
+       data = subset(pf, !is.na(ProsperRating..Alpha.)))+
+  geom_bar(color = 'black', fill = 'orange')
+```  
+
+由ProsperRating..Alpha.柱状图可知，2009年7月1日后客户的信用等级基本上呈正态分布，信用评级为C的人比较多。  
+
+```{r echo=FALSE, Univariate_Plots5}
+#ProsperScore(自定义风险评分)柱状图
+ggplot(aes(x=ProsperScore),data=pf)+
+  geom_bar(color = 'black', fill = 'orange')+
+  scale_x_continuous(breaks = seq(0,11,1))
+```  
+
+由ProsperScore柱状图可知，自定义风险评分基本呈正态分布，大部分评分集中在4-8分,评分越高代表越好。 
+
+```{r echo=FALSE, Univariate_Plots6}
+#ListingCategory..numeric.(贷款理由)柱状图
+ggplot(aes(ListingCategory..numeric.),data = pf)+
+  geom_bar(color = 'black', fill = 'orange')
+```
+
+由ListingCategory..numeric.柱状图可知，贷款理由最多的类型是1，1代表债务合并。
+
+```{r echo=FALSE, Univariate_Plots7}
+#BorrowerState(贷款人借款地点)柱状图
+ggplot(aes(BorrowerState),data = pf) +
+  geom_bar(color = 'black', fill = 'orange') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+```
+
+由BorrowerState柱状图可知，贷款人借款地点最多的是CA（加利福尼亚）。查询知prosper的总部位于加利福尼亚，因此有更多来自加利福尼亚的客户也符合常理。
+
+```{r echo=FALSE, Univariate_Plots8}
+#Occupation(贷款人职业)柱状图
+ggplot(aes(Occupation),data = pf) + 
+  geom_bar(color = 'black', fill = 'orange') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1)) 
+```
+
+由Occupation柱状图可知，职业选择other的贷款人数量最多。除此之外，贷款人最多的职业是professional。
+
+```{r echo=FALSE, Univariate_Plots9}
+#EmploymentStatus(贷款人职业状态)柱状图
+ggplot(aes(x=EmploymentStatus),data = pf) +
+  geom_bar(color = 'black', fill = 'orange')
+```  
+
+由EmploymentStatus柱状图可知，贷款人职业状态中被雇佣和全职的贷款人数更多，没有工作和退休的贷款人相对较少，因此可推断收入更稳定更高的人更容易贷到贷款。
+
+```{r echo=FALSE, Univariate_Plots10}
+#DelinquenciesLast7Years(信用资料提交时借款人过去7年违约次数)直方图
+ggplot(aes(x=DelinquenciesLast7Years),data = pf)+
+  geom_histogram(binwidth = 1, color = 'black', fill = 'deeppink')
+```  
+
+由DelinquenciesLast7Years直方图可知，大部分贷款人信用资料提交时过去7年违约次数为0，说明大部分贷款人的信用是好的。
+
+```{r echo=FALSE, Univariate_Plots11}
+#DebtToIncomeRatio(信用资料提交时贷款人的债务收入比)直方图
+ggplot(aes(DebtToIncomeRatio),data = pf) + 
+  geom_histogram(color = 'black', fill = 'deeppink')+ xlim(0,1.5)
+```
+
+由DebtToIncomeRatio直方图可知，信用资料提交时大部分贷款人的债务收入比在0.5之下，也就是债务不到收入的一半，这意味着大部分贷款人是有能力偿还债务的。
+
+```{r echo=FALSE, Univariate_Plots12}
+#IncomeRange(信用资料提交时贷款人的收入范围)柱状图
+ggplot(aes(IncomeRange),data = pf) +
+  geom_bar(color = 'black', fill = 'orange') +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+由IncomeRange柱状图可知，信用资料提交时贷款人的收入范围的缺失值比较多，年收入在25000 - 74999美元之间的贷款人相对较多。
+
+```{r echo=FALSE, Univariate_Plots13}
+#LoanOriginalAmount(贷款起始金额)直方图
+min(pf$LoanOriginalAmount)
+max(pf$LoanOriginalAmount)
+
+ggplot(aes(LoanOriginalAmount),data = pf) +
+  geom_histogram(binwidth = 1000, color = 'black', fill = 'deeppink') +
+  scale_x_continuous(breaks = seq(0,35000,5000))
+```
+
+由LoanOriginalAmount直方图可知，贷款起始金额范围为1000到35000美元，在大于5000美元的贷款额度中，逢5000倍数的贷款额度数量比其他额度高。
+
+```{r echo=FALSE, Univariate_Plots14}
+#CreditScore(贷款人信用评分)直方图
+ggplot(aes(CreditScore),data = pf) + 
+  geom_histogram(color = 'black', fill = 'deeppink')+ xlim(400,800)
+```
+
+由CreditScore直方图可知，大部分贷款人信用评分在700分左右。
+
+
+# 单变量分析
+
+### 你的数据集结构是什么？
+本研究的数据集来自Prosper，本次分析筛选了其中的16个变量，如下：
+* CreditGrade：2009年7月1日前客户的信用等级
+* Term：贷款期限
+* BorrowerRate：贷款利率
+* ProsperRating..Alpha.：2009年7月1日后客户的信用等级
+* ProsperScore：自定义风险评分
+* ListingCategory..numeric.：贷款理由
+* BorrowerState：贷款人借款地点
+* Occupation：贷款人职业
+* EmploymentStatus：贷款人职业状态
+* CreditScoreRangeLower：贷款人信用评分下线
+* CreditScoreRangeUpper：贷款人信用评分上线
+* DelinquenciesLast7Year：贷款人信用资料提交时过去7年违约次数
+* DebtToIncomeRatio：信用资料提交时贷款人的债务收入比
+* IncomeRange：信用资料提交时贷款人的收入范围
+* LoanOriginalAmount：贷款起始金额
+* LoanOriginationDate：贷款发放时间
+根据研究兴趣和目的，本研究还创建了新的变量：
+
+### 你的数据集内感兴趣的主要特性有哪些？
+
+我数据集内感兴趣的主要特征是贷款金额和贷款利率之间关系，以及它们的影响因素。
+
+### 你认为数据集内哪些其他特征可以帮助你探索兴趣特点？
+
+我认为CreditScore、ListingCategory..numeric.、IncomeRange、Term、LoanOriginalAmount、EmploymentStatus、Phase、ProsperRating..Alpha.、CreditGrade、DelinquenciesLast7Years等变量都可以帮助我探索我的兴趣点。
+
+### 根据数据集内已有变量，你是否创建了任何新变量？
+
+是的，我根据数据集内已有变量创建了两个新的变量：
+* CreditScore：贷款人信用评分
+* Period：贷款发放时间所处阶段
+
+### 在已经探究的特性中，是否存在任何异常分布？你是否对数据进行一些操作，如清洁、调整或改变数据的形式？如果是，你为什么会这样做？
+
+没有发现异常的分布。
+对部分变量进行了类型调整，如下：
+（1）将Term的类型转换成factor,并将Term的lables改为'1 year', '3 year', '5 year'。因为我们发现Term的周期只有1，3，5，因此Term应该为分类变量。
+（2）将CreditGrade改为有序变量,因为2009年7月1日前客户的信用等级有高低之分。
+（3）将ProsperRating..Alpha.改为有序变量，因为2009年7月1日后客户的信用等级有高低之分。
+（4）将ListingCategory..numeric. 类型转换成factor，因为贷款理由是分类变量，原本的数字对应的也是不同的贷款理由。。
+（5）将IncomeRange改为有序变量，因为信用资料提交时贷款人的收入范围有高低之分。
+（6）将LoanOriginationDate类型转换成Date，因为贷款发放时间是日期型的变量。
+
+
+# 双变量绘图选择
+```{r echo=FALSE, Bivariate_Plots1}
+#Term和LoanOriginalAmount
+ggplot(aes(x=Term,y=LoanOriginalAmount),data = pf) +
+  geom_boxplot(color = I('#099DD9')) +
+  stat_summary(fun.y = 'mean',
+               geom = 'point',
+               color = 'red') +
+  geom_smooth(method = 'lm',aes(group = 1, color = I('black')))
+```
+
+从Term和LoanOriginalAmount的箱线图中可以看出，贷款起始金额和贷款期限成正比，更长的贷款期限对应着更高的贷款起始金额。
+
+```{r echo=FALSE, Bivariate_Plots2}
+#EmploymentStatus和LoanOriginalAmount
+ggplot(aes(x=EmploymentStatus,y=LoanOriginalAmount),data = pf)+
+  geom_boxplot(color = I('#099DD9'))
+```
+
+从EmploymentStatus和LoanOriginalAmount的箱线图可以看出，职业状态为有工作的，全职的贷款人所能申请到的贷款起始金额中位数比那些兼职的，没有工作的或退休的贷款人更高。因此可以推断，贷款人的职业状态会影响贷款起始金额，那些有稳定的全职工作的贷款申请人能申请到更多的贷款。
+
+```{r echo=FALSE, Bivariate_Plots3}
+#IncomeRange和LoanOriginalAmount
+ggplot(aes(x=IncomeRange,y=LoanOriginalAmount),
+       data = subset(pf,!is.na(IncomeRange))) +
+  geom_boxplot(color = I('#099DD9')) + 
+  scale_x_discrete() +
+  stat_summary(fun.y = 'mean',
+               geom = 'point',
+               color = 'red') +
+  geom_smooth(method = 'lm',aes(group = 1),color = I('black')) +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
+```
+
+从IncomeRange和LoanOriginalAmount的箱线图可以看出，贷款起始金额随着信用资料提交时贷款人的收入范围的增长而增长，也就是说那些收入更高的贷款人能获得更高的贷款起始金额。
+
+```{r echo=FALSE, Bivariate_Plots4}
+#ListingCategory..numeric.和LoanOriginalAmount
+ggplot(aes(x=ListingCategory..numeric.,y=LoanOriginalAmount,
+           fill = ListingCategory..numeric.),data = pf) +
+  geom_boxplot()
+```
+
+从ListingCategory..numeric.和LoanOriginalAmount的箱线图可以看出，贷款起始金额较高的贷款理由是分类1债务合并和分类8育儿。
+
+```{r echo=FALSE, Bivariate_Plots5}
+#LoanOriginalAmount和BorrowerRate
+ggplot(aes(x=LoanOriginalAmount,y=BorrowerRate),data = pf) +
+  geom_point(alpha=0.1,position="jitter", color='seagreen1', size=1) +
+  geom_smooth(method = 'lm',aes(group = 1,color = I('black')))
+  
+cor.test(pf$LoanOriginalAmount,pf$BorrowerRate)
+```
+
+从LoanOriginalAmount和BorrowerRate的散点图中可以看出，贷款起始金额和贷款利率之间呈现出弱负相关关系，贷款起始金额越高，贷款利率越低，相关系数是-0.33。
+
+```{r echo=FALSE, Bivariate_Plots6}
+#CreditScore和BorrowerRate
+ggplot(aes(x=CreditScore, y=BorrowerRate),data = pf) + 
+  geom_point(alpha=0.1,position="jitter",size=1,color='seagreen1') +
+  xlim(450,900) +
+  geom_smooth(method = 'lm',aes(group = 1,color = I('black')))
+
+cor.test(pf$CreditScore,pf$BorrowerRate)
+```
+
+从CreditScore和BorrowerRate散点图可以看出，贷款利率和贷款人信用评分两个变量之间呈现较明显的负相关关系，贷款人的信用评分越高，贷款利率越低，相关系数是-0.46。
+
+
+# 双变量分析
+
+### 探讨你在这部分探究中观察到的一些关系。这些感兴趣的特性与数据集内其他特性有什么区别？
+
+在双变量分析中本研究发现了贷款起始金额和贷款期限成正比；贷款起始金额与职业状态有关，那些有稳定的全职工作的贷款申请人能申请到更多的贷款；贷款起始金额随着信用资料提交时贷款人的收入范围的增长而增长；贷款起始金额与贷款理由有关。贷款起始金额和贷款利率之间呈现出弱负相关关系。贷款利率和贷款人信用评分两个变量之间呈现较明显的负相关关系。
+
+### 你是否观察到主要特性与其他特性之间的有趣关系？
+
+更长的贷款期限对应着更高的贷款起始金额。那些有稳定的全职工作的贷款申请人能申请到更多的贷款起始金额。收入更高的贷款人能获得更高的贷款起始金额。贷款起始金额较高的贷款理由是分类1债务合并和分类8育儿。贷款起始金额越高，贷款利率越低。贷款人的信用评分越高，贷款利率越低。
+
+### 你发现最强的关系是什么？
+
+我发现最强的关系是贷款利率和贷款人信用评分两个变量之间呈现较明显的负相关关系，相关系数是-0.46。
+
+
+# 多变量绘图选择
+
+```{r echo=FALSE, Multivariate_Plots1}
+#LoanOriginalAmount与DelinquenciesLast7Years、ProsperRating..Alpha.之间的关系
+ggplot(aes(x=DelinquenciesLast7Years,y=LoanOriginalAmount,
+           color=ProsperRating..Alpha.),
+       data=subset(pf,!is.na(ProsperRating..Alpha.)))+
+  geom_jitter()+
+  scale_color_brewer(type = 'seq', palette = 4)
+```
+
+由图可知，从左上角到右下角颜色逐渐变浅，即2009年7月1日后，随着贷款人信用资料提交时过去7年违约次数的增大，贷款起始金额在不断地减少，客户的信用等级也在不断变小。也就是说那些信用等级高且信用资料提交时过去7年违约次数少的贷款人能贷到更多的贷款；相反的，那些信用等级低且信用资料提交时过去7年违约次数多的贷款人只能贷到更少的贷款。
+
+```{r echo=FALSE, Multivariate_Plots2}
+#CreditScore，BorrowerRate和Period之间的关系
+ggplot(aes(x=CreditScore,y=BorrowerRate),data = pf) + 
+  geom_jitter(alpha = 0.03,color = 'Green') + 
+  facet_wrap(~Period,ncol = 1) + 
+   scale_x_continuous(limits=c(400,900))+
+  scale_y_continuous(limits=c(0.0,0.4))+
+  geom_line(stat="summary", fun.y=mean, color = "Blue")
+```
+
+由图可知，不论是2009年7月1日之前还是2009年7月1日之后，借款利率都随着信用评分的升高而降低。对比上下两图可知，在2009年7月1日之后，prosper几乎不会给信用评分为600分以下的用户提供贷款了。
+
+```{r echo=FALSE, Multivariate_Plots3}
+#BorrowerRate，CreditGrade和BorrowerRate，ProsperRating..Alpha.对比
+p1 <- ggplot(aes(CreditGrade,BorrowerRate),
+             data =subset(pf,LoanOriginationDate < "2009-07-01")) +
+    scale_x_discrete(limits = c("HR","E","D","C","B","A","AA")) + 
+    geom_boxplot() +
+    stat_summary(fun.y = mean,geom = 'point',shape = 4) +
+    stat_summary(fun.y = mean,geom = 'smooth',aes(group = 1)) +
+  ggtitle("before 2009-07-01")
+p2 <- ggplot(aes(ProsperRating..Alpha.,BorrowerRate),
+             data =subset(pf,LoanOriginationDate > "2009-07-01")) +
+  scale_x_discrete(limits = c("HR","E","D","C","B","A","AA")) + 
+  geom_boxplot() +
+  stat_summary(fun.y = mean,geom = 'point',shape = 4) +
+  stat_summary(fun.y = mean,geom = 'smooth',aes(group = 1)) + 
+  ggtitle("after 2009-07-01")
+grid.arrange(p1,p2,ncol = 1)
+```
+
+由图可知，不论是2009年7月1日之前还是2009年7月1日之后，贷款人的信用评级和贷款利率都呈反比，2009年7月1日之后各信用等级平均值的连线斜率比2009年7月1日之前大，这反映出2009年7月1日之后不同信用等级的借款利率梯度变大。
+
+```{r echo=FALSE, Multivariate_Plots4}
+#LoanOriginalAmount,BorrowerRate和CreditScore
+loandata_credit_score_na_omitted <- na.omit(pf$CreditScore)
+secondQuantile <- quantile(loandata_credit_score_na_omitted, 0.5)
+
+ggplot(aes(x=LoanOriginalAmount, y=BorrowerRate, color=CreditScore),
+       data=subset(pf, pf$CreditScore > secondQuantile)) +
+  geom_point(alpha=0.5, position='jitter') + 
+  scale_colour_gradient(low="yellow", high="red")
+```
+
+由图可知，左上角的颜色较浅，说明那些信用评分低的贷款人将以更高的贷款利率获得较低的贷款起始金额；右下角的颜色较深，说明那些信用评分高的贷款人将以更低的贷款利率获得较高的贷款起始金额。（为了获得更好的可视化，仅绘制对应于信用分大于中位数的用户。）
+
+```{r echo=FALSE, Multivariate_Plots5}
+#2009年7月1日之前的函数
+m1 <- lm(I(BorrowerRate) ~ I(CreditScore),
+         data = subset(pf, LoanOriginationDate < "2009-07-01"
+         & !is.na(CreditGrade) & !is.na(LoanOriginalAmount) 
+         & !is.na(CreditScore)))
+m2 <- update(m1, ~ . + CreditGrade)
+m3 <- update(m2, ~ . + LoanOriginalAmount)
+
+mtable(m1, m2, m3)
+```
+
+```{r echo=FALSE, Multivariate_Plots6}
+#2009年7月1日之后的函数
+m4 <- lm(I(BorrowerRate) ~ I(CreditScore), 
+         data = subset(pf, LoanOriginationDate > "2009-07-01"
+         & !is.na(ProsperRating..Alpha.) & !is.na(LoanOriginalAmount) 
+         & !is.na(CreditScore)))
+m5 <- update(m4, ~ . + ProsperRating..Alpha.)
+m6 <- update(m5, ~ . + LoanOriginalAmount)
+
+mtable(m4, m5, m6)
+```
+
+由输出的数据表可知，2009年7月1日之后的R^2(0.9)大于2009年7月1日之前的R^2(0.5),这说明2009年7月1日之后prosper更加关注贷款人的信用评级，贷款人的信用评级对贷款利率的影响变大。
+
+
+# 多变量分析
+
+###  探讨你在这部分探究中观察到的一些关系。通过观察感兴趣的特性，是否存在相互促进的特性？
+
+不论是2009年7月1日之前还是2009年7月1日之后，借款利率都随着信用评分的升高而降低，贷款人的信用评级和贷款利率都呈反比。
+
+### 这些特性之间是否存在有趣或惊人的联系呢？
+
+信用等级高且信用资料提交时过去7年违约次数少的贷款人能贷到更多的贷款；那些信用评分高的贷款人将以更低的贷款利率获得较高的贷款起始金额。
+
+### 选项：你是否创建过数据集的任何模型？讨论你模型的优缺点。
+
+是的，我创建了线性模型讨论了贷款人的信用评分、信用等级和贷款起始金额对贷款利率的影响。模型的优点是简洁明了，缺点是探讨的变量比较少，还可以尝试增加更多的变量，发现更多变量间有趣的关系。
+
+------
+
+
+# 定稿图与总结
+
+### 绘图一
+```{r echo=FALSE, Plot_One}
+#CreditScore和BorrowerRate
+ggplot(aes(x=CreditScore, y=BorrowerRate),data = pf) + 
+  geom_point(alpha=0.1,position="jitter",size=1,color='seagreen1') +
+  xlim(450,900) +
+  geom_smooth(method = 'lm',aes(group = 1,color = I('black'))) +
+  labs(title = "贷款利率与贷款人信用评分散点图")
+
+cor.test(pf$CreditScore,pf$BorrowerRate)
+```
+
+### 描述一
+
+从CreditScore和BorrowerRate散点图可以看出，贷款利率和贷款人信用评分两个变量之间呈现较明显的负相关关系，贷款人的信用评分越高，贷款利率越低，相关系数是-0.46。
+
+### 绘图二
+```{r echo=FALSE, Plot_Two}
+#CreditScore，BorrowerRate和Period之间的关系
+ggplot(aes(x=CreditScore,y=BorrowerRate),data = pf) + 
+  geom_jitter(alpha = 0.03,color = 'Green') + 
+  facet_wrap(~Period,ncol = 1) + 
+   scale_x_continuous(limits=c(400,900))+
+  scale_y_continuous(limits=c(0.0,0.4))+
+  geom_line(stat="summary", fun.y=mean, color = "Blue") +
+  labs(title = "贷款人的信用评分与贷款利率散点图")
+```
+
+### 描述二
+
+由图可知，不论是2009年7月1日之前还是2009年7月1日之后，借款利率都随着信用评分的升高而降低。对比上下两图可知，在2009年7月1日之后，prosper几乎不会给信用评分为600分以下的用户提供贷款了。
+
+### 绘图三
+```{r echo=FALSE, Plot_Three}
+#LoanOriginalAmount与DelinquenciesLast7Years、ProsperRating..Alpha.之间的关系
+ggplot(aes(x=DelinquenciesLast7Years,y=LoanOriginalAmount,
+           color=ProsperRating..Alpha.),
+       data=subset(pf,!is.na(ProsperRating..Alpha.)))+
+  geom_jitter()+
+  scale_color_brewer(type = 'seq', palette = 4) +
+  ylab("LoanOriginalAmount ($)") +
+  labs(title = "贷款人的贷款起始金额与贷款人过去7年违约次数和贷款人信用评级关系图")
+```
+
+### 描述三
+
+由图可知，从左上角到右下角颜色逐渐变浅，即2009年7月1日后，随着贷款人信用资料提交时过去7年违约次数的增大，贷款起始金额在不断地减少，客户的信用等级也在不断变小。也就是说那些信用等级高且信用资料提交时过去7年违约次数少的贷款人能贷到更多的贷款；相反的，那些信用等级低且信用资料提交时过去7年违约次数多的贷款人只能贷到更少的贷款。
+
+------
+
+# 反思
+
+本数据集包含的变量较多，在开始分析需要花很多时间来弄清楚变量的含义，这一点非常重要，要静下心来弄明白数据集的结构，这将为本项目的分析奠定良好的基础。在这个项目进行过程中，我仅挑选了自己感兴趣的一些变量进行探讨，目的是练习使用R语言进行探索性数据分析的过程，相关研究结果还比较局限。接下来可以重新审视数据集，从prosper管理人员最想要了解的内容的角度来挑选变量，进行更与实际相结合的研究。
