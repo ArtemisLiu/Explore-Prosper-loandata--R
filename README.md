@@ -89,7 +89,7 @@
 
 ### （1）贷款利率和贷款人信用评分散点图
 
-![贷款利率和贷款人信用评分](E:\github\Explore-Prosper-loandata--R\结论图片\贷款利率和贷款人信用评分.png)
+![贷款利率和贷款人信用评分](https://github.com/ArtemisLiu/Explore-Prosper-loandata--R/blob/master/结论图片/贷款利率和贷款人信用评分.png)
 
 从CreditScore和BorrowerRate散点图可以看出，贷款利率和贷款人信用评分两个变量之间呈现较明显的负相关关系，贷款人的信用评分越高，贷款利率越低，相关系数是-0.46。
 
